@@ -1,4 +1,4 @@
-Discord Bot Invite Link: currently unavailable
+Discord Bot Invite Link: https://discord.com/api/oauth2/authorize?client_id=855052547018719252&permissions=402730064&scope=bot
 
 God Machine Bot is a rather simple discord bot designed both to store character
 sheets, and to provide ease of dice rolling. The bot is capable of understanding
