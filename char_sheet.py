@@ -354,7 +354,7 @@ class sheet():
         '''
         result = "__***"+self.name+"***__"
         result += ", "+self.splat.title()+"\n"
-        result += "**Virtue:** {}\t**Vice:** {}\n".format(self.virtue, self.vice)
+        result += "**Virtue:** {}\t**Vice:** {}\n".format(self.virtue.title(), self.vice.title())
         result += "**Integrity:** "+str(self.integrity)
         result += "\n\n"
         result += "__**Attributes**__\n```"
@@ -482,7 +482,7 @@ class sheet():
                     result['skills'].append(x)
                 elif x in self.attributes:
                     result['attributes'].append(x)
-                elif x in ['9again', '8again', 'chance']:
+                elif x in ['9again', '8again', 'chance', 'noagain']:
                     result['type'] = x
                 elif x == 'rote':
                     result['rote'] = True
@@ -538,7 +538,7 @@ class sheet():
         explosions = 0
         explode_on = 10
         
-        if rules['type'] == 'chance':
+        if rules['type'] == 'chance' or rules['type'] == 'noagain':
             explode_on = 11
         elif rules['type'] == '9again':
             explode_on = 9
@@ -549,7 +549,7 @@ class sheet():
             roll_list = []
             roll = random.randint(1,10)
             roll_list.append(roll)
-            if rules['rote'] == True and roll == 1:
+            if rules['rote'] == True and roll < 8:
                 roll = random.randint(1,10)
                 roll_list.append(roll)
             if roll >= 8 and rules['type'] != 'chance':
