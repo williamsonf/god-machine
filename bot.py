@@ -10,7 +10,7 @@ from bot_commands import initialize_commands
 load_dotenv()
 
 if __name__ == '__main__':
-    bot = commands.Bot(command_prefix='~')
+    bot = commands.Bot(command_prefix='!')
     initialize_commands(bot)
     
     @bot.event
