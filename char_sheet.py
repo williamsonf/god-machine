@@ -14,7 +14,7 @@ phy_skills = ['athletics', 'brawl', 'drive', 'firearms', 'larceny', 'stealth', '
 soc_skills = ['animals', 'empathy', 'expression', 'intimidation', 'persuasion', 'socialize', 'streetwise', 'subterfuge']
 skill_list = men_skills+phy_skills+soc_skills
 
-class sheet():
+class mortal():
     '''
     The base class used for storing and retrieving information for a
     Chronicles of Darkness character sheet
@@ -59,6 +59,12 @@ class sheet():
         the character's Virtue
     vice : str
         the character's Vice
+    bashing : int
+        the amount of bashing damage the character has received
+    lethal : int
+        the amount of lethal damage the character has received
+    aggravated : int
+        the amount of aggravated damage the character has received
         
     Methods
     -------
@@ -114,10 +120,28 @@ class sheet():
         deletes a sheet
     parse_rollargs
         parses a list of arguments used to define a roll
+    build_dicepool
+        generates a dicepool of the correct size from a list of arguments
+    roll_dice
+        rolls dice, providing successes and explosions as defined by the output
+        of parse_rollargs and build_dicepool
+    max_health
+        returns an integer representing the character's maximum derived health pool
+    add_bashing
+        adds bashing damage to the character, converting up to lethal as needed
+    add_lethal
+        adds lethal damage to the character, pushing off bashing damage and
+        converting up to aggravated as needed
+    add_agg
+        adds aggravated damage to the character, pushing off bashing and
+        lethal damage as required. indicates if the character's wound track
+        is filled
+    bheal, lheal, aheal
+        reduces the character's damage by a given amount. restores to 0 if they
+        go into the negatives
     '''
 
-
-    def __init__(self, server_id, user_id):
+    def __init__(self, server_id, info):
         '''
         Initializing a sheet instance takes a discord server id and user id
         and collects that information from a mongo db, which is then used
@@ -133,8 +157,7 @@ class sheet():
             character saved to a given collection in the database
         '''
         self.server_id = str(server_id)
-        self.user_id = user_id
-        info = self.find_sheet()
+        self.user_id = info.get("user id", 0)
         self.splat = info.get("splat", "mortal")
         self.name = info.get("name", "Unnamed Character")
         default_attributes = {'intelligence' : 1, 'wits' : 1, 'resolve' : 1,
@@ -151,17 +174,9 @@ class sheet():
         self.willpower = info.get('willpower', self.max_wp())
         self.virtue = info.get('virtue', 'Nice')
         self.vice = info.get('vice', 'Naughty')
-
-        
-    def find_sheet(self):
-        mongo_client = pymongo.MongoClient(os.environ.get('DB_HOST'), int(os.environ.get('DB_PORT')))
-        db = mongo_client[os.environ.get('DB_NAME')]
-        collection = db[self.server_id]
-        sheet = collection.find_one({'user id' : self.user_id})
-        if sheet != None:
-            return sheet
-        else:
-            return {}
+        self.bashing = info.get('bashing', 0)
+        self.lethal = info.get('lethal', 0)
+        self.aggravated = info.get('aggravated', 0)
     
     def save_sheet(self):
         mongo_client = pymongo.MongoClient(os.environ.get('DB_HOST'), int(os.environ.get('DB_PORT')))
@@ -185,6 +200,9 @@ class sheet():
         result['willpower'] = self.willpower
         result['virtue'] = self.virtue
         result['vice'] = self.vice
+        result['bashing'] = self.bashing
+        result['lethal'] = self.lethal
+        result['aggravated'] = self.aggravated
         
         return result
     
@@ -298,9 +316,9 @@ class sheet():
             curr_beats = self.beats
             new_beats = curr_beats + value
             xp_gain = 0
-            while new_beats >= 5:
-                xp_gain += 1
-                new_beats -= 5
+            if new_beats >= 5:
+                xp_gain = int(new_beats / 5)
+                new_beats = int(new_beats % 5)
             self.beats = int(new_beats)
             self.experience += int(xp_gain)
             self.save_sheet()
@@ -430,6 +448,8 @@ class sheet():
         results += "Defense: {}\n".format(str(self.get_defense()))
         results += "Size: {}\n".format(str(self.get_size()))
         results += "Speed: {}\n".format(str(self.get_speed()))
+        results += "__**Health**__\n"
+        results += self.wound_track()
         return results
         
     def get_initiative(self):
@@ -492,6 +512,8 @@ class sheet():
                     result['math'].append(x)
                 elif type(x) == int or x.isnumeric():
                     result['math'].append("+"+str(x))
+                elif x == 'wp':
+                    result['math'].append("+3")
         return result
     
     def build_dicepool(self, argdic):
@@ -582,38 +604,148 @@ class sheet():
             dice_word = 'die'
         if rules['type'] == 'chance':
             rules['pool'] = 'a chance'
-        return "You rolled {} {}!\n**{} successes** and {} explosions\n{}".format(str(rules['pool']), dice_word, str(successes), str(explosions), roll_results)                
+        return "You rolled {} {}!\n**{} successes** and {} explosions\n{}".format(str(rules['pool']), dice_word, str(successes), str(explosions), roll_results)
     
-if __name__ == '__main__':
-    test = sheet(100, 1000)
-    test.clear_sheet()
-    test = sheet(100, 1000)
-    test.set_name('Bob the Tester')
-    test.set_virtue('Kind')
-    test.set_virtue('Grim')
-    test.set_attrib('sTaMinA', 3)
-    test.mod_integ(6)
-    print(test.displ_head())
-    test.set_skill('aTHleTicS', 3)
-    test.set_skill('Boomer', 5)
-    test.add_specialty('ATHLETICS', 'running')
-    test.add_specialty('ATHLETICS', 'swimming')
-    test.set_skill('Science', 4)
-    test.set_skill('Persuasion', 2)
-    print(test.displ_skills())
-    test.set_merit('Giant', 1)
-    print(test.displ_merits())
-    test.add_con('Dumb Dumb')
-    test.add_aspir('Get this damn thing to work.')
-    test.add_aspir('Something else.')
-    test.add_beats(7)
-    print(test.displ_beats())
-    test.set_wp(0)
-    print(test.displ_advant())
-    print(test.roll_dice(['AthLETics', 'RuNning', 'stamina', '9again']))
-    print(test.roll_dice(['no']))
-    print(test.roll_dice(['inTELLIGENCE', 'science']))
-    print(test.roll_dice(['Stamina', 'ATHLETICS', 'rote', '8again']))
-    print(test.roll_dice(['Athletics', 'Running', 'Stamina', '8again', '-5']))
-    print(test.roll_dice(['Athletics', 'Running', 'Stamina', '+5']))
-    test.clear_sheet()
+    def max_health(self):
+        return int(self.get_size()+self.attributes['stamina'])
+    
+    def add_bashing(self, val):
+        response = ""
+        b_taken = 0
+        #first, we check to make sure there is no overflow
+        if self.bashing + self.lethal + self.aggravated + val >= self.max_health():  
+            if self.max_health() - (self.bashing + self.lethal + self.aggravated) > 0:
+                avail_spots = self.max_health() - (self.bashing + self.lethal + self.aggravated)
+                self.bashing += avail_spots
+                b_taken += avail_spots
+                val -= avail_spots
+            response = "{} has taken {} bashing damage!".format(self.name, str(b_taken))
+            if val > 0:               
+                lethal = self.add_lethal(val)
+                response += " {} has been converted to lethal.\n".format(str(val)) + lethal
+        else:
+            self.bashing += val
+            response = "{} has taken {} bashing damage!".format(self.name, str(val))
+        self.save_sheet()
+        return response
+    
+    def add_lethal(self, val):
+        response = ""
+        l_taken = 0
+        #first we check to make sure there is no overflow
+        if self.bashing + self.lethal + self.aggravated + val >= self.max_health():
+            if self.max_health() - (self.bashing + self.lethal + self.aggravated) > 0:
+                avail_spots = self.max_health() - (self.bashing + self.lethal + self.aggravated)
+                self.lethal += avail_spots
+                l_taken += avail_spots
+                val -= avail_spots
+            if self.bashing > val: #if bashing is just being pushed off
+                self.bashing -= val
+                self.lethal += val
+                l_taken += val
+                response = "{} has taken {} lethal damage!".format(self.name, str(val))
+            elif self.bashing > 0: #if there is more damage being taken than there is bashing damage available
+                avail_bash = self.bashing #saved for the string
+                val -= self.bashing #first we reduce the damage to be dealt by available bashing
+                self.lethal += avail_bash #then we add the available bashing to lethal
+                l_taken += avail_bash
+                self.bashing = 0 #then we set bashing to 0, as it has all been used
+                if val > 0: #if there is any left over
+                    upconvert = self.add_agg(val)
+                    response = "{} has taken {} lethal damage! {} has been converted to aggravated.\n".format(self.name, str(l_taken), str(val)) + upconvert
+                else:
+                    response = "{} has taken {} lethal damage!".format(self.name, str(avail_bash))
+            else: #we may have only lethal or only aggravated
+                avail_spots = self.max_health() - (self.aggravated + self.lethal)
+                if val > avail_spots and avail_spots != 0:
+                    remainder = val - avail_spots
+                    self.lethal += remainder
+                    val -= remainder
+                elif val == avail_spots:
+                    remainder = avail_spots
+                    val -= avail_spots
+                    self.lethal += remainder
+                elif val < avail_spots:
+                    remainder = avail_spots - val
+                    self.lethal += remainder
+                elif avail_spots == 0:
+                    remainder = 0
+                response = "{} has taken {} lethal damage!".format(self.name, str(remainder))
+                if val > 0:
+                    upconvert = self.add_agg(val)
+                    response += " {} has been converted to aggravated damage.\n".format(str(val)) + upconvert
+        else:
+            self.lethal += val
+            response = "{} has taken {} lethal damage!".format(self.name, str(val))
+        self.save_sheet()
+        return response
+    
+    def add_agg(self, val):
+        #first we check to make sure there is no overflow
+        oval = val
+        response = ""
+        if self.bashing + self.lethal + self.aggravated + val >= self.max_health():
+            if self.max_health() - (self.bashing + self.lethal + self.aggravated) > 0:
+                avail_spots = self.max_health() - (self.bashing + self.lethal + self.aggravated)
+                self.aggravated += avail_spots
+                val -= avail_spots
+            if self.bashing > val:
+                self.bashing -= val
+                self.aggravated += val
+            elif self.bashing > 0:
+                remainder = val - self.bashing
+                self.bashing = 0
+                self.aggravated += remainder
+                val -= remainder
+            if self.lethal > val:
+                self.lethal -= val
+                self.aggravated += val
+            elif self.lethal > 0:
+                self.lethal = 0
+                self.aggravated += val
+            else:
+                self.aggravated += val
+        else:
+            self.aggravated += val
+        response += "{} has taken {} aggravated damage!".format(self.name, str(oval))
+        if self.aggravated >= self.max_health():
+            self.bashing = 0
+            self.lethal = 0
+            self.aggravated = self.max_health()
+            response += " The death bell tolls. {}'s wound track is filled with aggravated damage.".format(self.name)
+        self.save_sheet()
+        return response
+    
+    def wound_track(self):
+        response = "```"
+        if self.aggravated > 0:
+            response += "A" * self.aggravated
+        if self.lethal > 0:
+            response += "L" * self.lethal
+        if self.bashing > 0:
+            response += "B" * self.bashing
+        if self.aggravated + self.lethal + self.bashing < self.max_health():
+            response += "_" * (self.max_health() - (self.aggravated + self.lethal + self.bashing))
+        response += "```"
+        return response
+    
+    def bheal(self, val):
+        self.bashing -= val
+        if self.bashing < 0:
+            self.bashing = 0
+        self.save_sheet()
+        return "{} has been healed of {} bashing damage.".format(self.name, str(val))
+    
+    def lheal(self, val):
+        self.lethal -= val
+        if self.lethal < 0:
+            self.lethal = 0
+        self.save_sheet()
+        return "{} has been healed of {} lethal damage.".format(self.name, str(val))
+    
+    def aheal(self, val):
+        self.aggravated -= val
+        if self.aggravated < 0:
+            self.aggravated = 0
+        self.save_sheet()
+        return "{} has been healed of {} aggravated damage.".format(self.name, str(val))
