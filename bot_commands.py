@@ -6,8 +6,11 @@ Created on Jun 16, 2021
 Methods
 -------
 get_sheet
-    Loads a sheet from the database, identifies the associated gameline, and
-    returns the character sheet object of the correct class.
+    Loads a sheet from the database.
+gen_sheet
+    Identifies the correct gameline for a loaded sheet and returns the proper class.
+check_sheet
+    Validates a creation string's JSON
     
 Classes
 -------
@@ -22,22 +25,54 @@ Creation
 Other
     Discord.py Cog for miscellaneous other character sheet commands
 '''
-import pymongo, os
+import pymongo, os, json
 from time import sleep
 from char_sheet import mortal
 from discord.ext import commands
 from dotenv import load_dotenv
 load_dotenv()
 
+no_sheet = "You do not have a character sheet! To create a sheet manually, please begin with !name \n To generate a sheet, please see !create"
+
 def get_sheet(server_id, user_id):
         mongo_client = pymongo.MongoClient(os.environ.get('DB_HOST'), int(os.environ.get('DB_PORT')))
         db = mongo_client[os.environ.get('DB_NAME')]
         collection = db[str(server_id)]
         info = collection.find_one({'user id' : user_id})
-        if info == None:
-            return mortal(server_id, {'user id' : user_id})
+        return info
+        
+def gen_sheet(server_id, info):
         if info['splat'] == 'mortal':
             return mortal(server_id, info)
+        else:
+            print("INVALID SPLAT TYPE:")
+            print("SERVER: {}".format(str(server_id)))
+            print("INFO: {}".format(str(info)))
+            
+def check_sheet(strangedict):
+    checker = ['name', 'attributes', 'skills']
+    attributes = ['intelligence', 'wits', 'resolve', 'strength', 'dexterity', 'stamina', 'presence', 'manipulation', 'composure']
+    test = []
+    for check in checker:
+        if check in strangedict.keys():
+            test.append(0)
+        else:
+            test.append(1)
+    if 'attributes' not in strangedict.keys():
+        return False
+    for attrib in attributes:
+        if attrib in strangedict['attributes'].keys():
+            if int(strangedict['attributes'][attrib]) > 0 and int(strangedict['attributes'][attrib]) < 6:
+                test.append(0)
+            else:
+                test.append(1)
+        else:
+            test.append(1)
+    test = sum(test)
+    if test == 0:
+        return True #I know this is backwards but whatever
+    else:
+        return False
         
 class CommonActions(commands.Cog, name='01. Common Actions'):
     def __init__(self, bot):
@@ -80,8 +115,12 @@ class CommonActions(commands.Cog, name='01. Common Actions'):
             This will roll Athletics (Sprint) + Stamina, with the +3 willpower bonus
         '''
         char = get_sheet(ctx.message.guild.id, ctx.author.id)
-        response = char.roll_dice(args)
-        await ctx.send(response)
+        if char != None:
+            char = gen_sheet(ctx.message.guild.id, char)
+            response = char.roll_dice(args)
+            await ctx.send(response)
+        else:
+            await ctx.send(no_sheet)
 
     @commands.command(brief='Displays the character sheet. Contains optional arguments.')
     async def score(self, ctx, arg=None):
@@ -96,36 +135,44 @@ class CommonActions(commands.Cog, name='01. Common Actions'):
             wounds - just the character's wound track
         '''
         char = get_sheet(ctx.message.guild.id, ctx.author.id)
-        if arg != None:
-            arg = arg.lower()
-        if arg == 'header':
-            await ctx.send(char.displ_head())
-        elif arg == 'skills':
-            await ctx.send(char.displ_skills())
-        elif arg == 'merits':
-            await ctx.send(char.displ_merits())
-        elif arg == 'beats':
-            await ctx.send(char.displ_beats())
-        elif arg == 'advantages':
-            await ctx.send(char.displ_advant())
-        elif arg == 'wounds':
-            await ctx.send("{}'s Wounds:\n".format(char.name) + char.wound_track())
-        elif arg == None:
-            await ctx.send(char.displ_head())
-            sleep(1)
-            await ctx.send(char.displ_skills())
-            sleep(1)
-            await ctx.send(char.displ_merits())
-            sleep(1)
-            await ctx.send(char.displ_beats())
-            sleep(1)
-            await ctx.send(char.displ_advant())
+        if char != None:
+            char = gen_sheet(ctx.message.guild.id, char)
+            if arg != None:
+                arg = arg.lower()
+            if arg == 'header':
+                await ctx.send(char.displ_head())
+            elif arg == 'skills':
+                await ctx.send(char.displ_skills())
+            elif arg == 'merits':
+                await ctx.send(char.displ_merits())
+            elif arg == 'beats':
+                await ctx.send(char.displ_beats())
+            elif arg == 'advantages':
+                await ctx.send(char.displ_advant())
+            elif arg == 'wounds':
+                await ctx.send("{}'s Wounds:\n".format(char.name) + char.wound_track())
+            elif arg == None:
+                await ctx.send(char.displ_head())
+                sleep(1)
+                await ctx.send(char.displ_skills())
+                sleep(1)
+                await ctx.send(char.displ_merits())
+                sleep(1)
+                await ctx.send(char.displ_beats())
+                sleep(1)
+                await ctx.send(char.displ_advant())
+        else:
+            await ctx.send(no_sheet)
             
     @commands.command(brief='Sets the current willpower for the character.')
     async def wp(self, ctx, value):
         char = get_sheet(ctx.message.guild.id, ctx.author.id)
-        response = char.set_wp(int(value))
-        await ctx.send(response)
+        if char != None:
+            char = gen_sheet(ctx.message.guild.id, char)
+            response = char.set_wp(int(value))
+            await ctx.send(response)
+        else:
+            await ctx.send(no_sheet)
         
 class Experience(commands.Cog, name='02. Beats and Experience'):
     def __init__(self, bot):
@@ -137,8 +184,12 @@ class Experience(commands.Cog, name='02. Beats and Experience'):
         names should be enwrapped in quotes ("Soul Loss" not just Soul Loss)
         '''
         char = get_sheet(ctx.message.guild.id, ctx.author.id)
-        response = char.add_con(condition)
-        await ctx.send(response)       
+        if char != None:
+            char = gen_sheet(ctx.message.guild.id, char)
+            response = char.add_con(condition)
+            await ctx.send(response)       
+        else:
+            await ctx.send(no_sheet)
 
     @commands.command(brief='Removes a condition from the character')
     async def delcon(self, ctx, condition):
@@ -146,32 +197,52 @@ class Experience(commands.Cog, name='02. Beats and Experience'):
         names should be wrapped in quotes ("Soul Loss" not just Soul Loss)
         '''
         char = get_sheet(ctx.message.guild.id, ctx.author.id)
-        response = char.del_con(condition)
-        await ctx.send(response)      
+        if char != None:
+            char = gen_sheet(ctx.message.guild.id, char)
+            response = char.del_con(condition)
+            await ctx.send(response)      
+        else:
+            await ctx.send(no_sheet)
 
     @commands.command(brief='Adds beats to the character. Automatically converts to xp.')
     async def beats(self, ctx, val):
         char = get_sheet(ctx.message.guild.id, ctx.author.id)
-        response = char.add_beats(int(val))
-        await ctx.send(response)
+        if char != None:
+            char = gen_sheet(ctx.message.guild.id, char)
+            response = char.add_beats(int(val))
+            await ctx.send(response)
+        else:
+            await ctx.send(no_sheet)
              
     @commands.command(brief='Removes experience from the character.')
     async def spendxp(self, ctx, val):
         char = get_sheet(ctx.message.guild.id, ctx.author.id)
-        response = char.del_exp(int(val))
-        await ctx.send(response)
+        if char != None:
+            char = gen_sheet(ctx.message.guild.id, char)
+            response = char.del_exp(int(val))
+            await ctx.send(response)
+        else:
+            await ctx.send(no_sheet)
 
     @commands.command(brief='Adds an aspiration to the character. Must be wrapped in quotes.')
     async def aspireto(self, ctx, aspiration):
         char = get_sheet(ctx.message.guild.id, ctx.author.id)
-        response = char.add_aspir(aspiration)
-        await ctx.send(response)  
+        if char != None:
+            char = gen_sheet(ctx.message.guild.id, char)
+            response = char.add_aspir(aspiration)
+            await ctx.send(response)  
+        else:
+            await ctx.send(no_sheet)
         
     @commands.command(brief='Removes an aspiration from the character. Does not award beats.')
     async def fulfill(self, ctx, aspiration):
         char = get_sheet(ctx.message.guild.id, ctx.author.id)
-        response = char.del_aspir(aspiration)
-        await ctx.send(response)
+        if char != None:
+            char = gen_sheet(ctx.message.guild.id, char)
+            response = char.del_aspir(aspiration)
+            await ctx.send(response)
+        else:
+            await ctx.send(no_sheet)
         
 class Combat(commands.Cog, name='03. Combat'):
     def __init__(self, bot):
@@ -186,16 +257,20 @@ class Combat(commands.Cog, name='03. Combat'):
         '''
         value = int(value)
         damagetype = damagetype.lower()
-        char = get_sheet(ctx.message.guild.id, ctx.author.id)
         response = ""
-        if damagetype == 'b':
-            response = char.add_bashing(value)
-        elif damagetype == 'l':
-            response = char.add_lethal(value)
-        elif damagetype == 'a':
-            response = char.add_agg(value)
-        response += "\n" + char.wound_track()
-        await ctx.send(response)
+        char = get_sheet(ctx.message.guild.id, ctx.author.id)
+        if char != None:
+            char = gen_sheet(ctx.message.guild.id, char)
+            if damagetype == 'b':
+                response = char.add_bashing(value)
+            elif damagetype == 'l':
+                response = char.add_lethal(value)
+            elif damagetype == 'a':
+                response = char.add_agg(value)
+            response += "\n" + char.wound_track()
+            await ctx.send(response)
+        else:
+            await ctx.send(no_sheet)
         
     @commands.command(brief='Heals damage from the character')
     async def heal(self, ctx, value=0, damagetype='b'):
@@ -206,16 +281,20 @@ class Combat(commands.Cog, name='03. Combat'):
         '''
         value = int(value)
         damagetype = damagetype.lower()
-        char = get_sheet(ctx.message.guild.id, ctx.author.id)
         response = ""
-        if damagetype == 'b':
-            response = char.bheal(value)
-        elif damagetype == 'l':
-            response = char.lheal(value)
-        elif damagetype == 'a':
-            response = char.aheal(value)
-        response += "\n" + char.wound_track()
-        await ctx.send(response)
+        char = get_sheet(ctx.message.guild.id, ctx.author.id)
+        if char != None:
+            char = gen_sheet(ctx.message.guild.id, char)
+            if damagetype == 'b':
+                response = char.bheal(value)
+            elif damagetype == 'l':
+                response = char.lheal(value)
+            elif damagetype == 'a':
+                response = char.aheal(value)
+            response += "\n" + char.wound_track()
+            await ctx.send(response)
+        else:
+            await ctx.send(no_sheet)
         
 class Creation(commands.Cog, name="04. Character Creation"):
     def __init__(self, bot):
@@ -227,8 +306,15 @@ class Creation(commands.Cog, name="04. Character Creation"):
         sheet, one will be generated for you.
         '''
         char = get_sheet(ctx.message.guild.id, ctx.author.id)
-        response = char.set_name(name)
-        await ctx.send(response)
+        if char != None:
+            char = gen_sheet(ctx.message.guild.id, char)
+            response = char.set_name(name)
+            await ctx.send(response)
+        else:
+            await ctx.send("Generating new character, {}".format(name))
+            char = mortal(ctx.message.guild.id, {'user id' : ctx.author.id})
+            response = char.set_name(name)
+            await ctx.send(response)
         
     @commands.command(brief='Sets an attribute score')
     async def attribute(self, ctx, attribute, score):
@@ -237,8 +323,12 @@ class Creation(commands.Cog, name="04. Character Creation"):
         the chosen attribute, followed by the value you wish to set it to.
         '''
         char = get_sheet(ctx.message.guild.id, ctx.author.id)
-        response = char.set_attrib(attribute, int(score))
-        await ctx.send(response)
+        if char != None:
+            char = gen_sheet(ctx.message.guild.id, char)
+            response = char.set_attrib(attribute, int(score))
+            await ctx.send(response)
+        else:
+            await ctx.send(no_sheet)
     
     @commands.command(brief='Sets a skill level')
     async def skill(self, ctx, skill, score):
@@ -249,8 +339,12 @@ class Creation(commands.Cog, name="04. Character Creation"):
         skill, followed by the value you wish to set it to.
         '''
         char = get_sheet(ctx.message.guild.id, ctx.author.id)
-        response = char.set_skill(skill, int(score))
-        await ctx.send(response)
+        if char != None:
+            char = gen_sheet(ctx.message.guild.id, char)
+            response = char.set_skill(skill, int(score))
+            await ctx.send(response)
+        else:
+            await ctx.send(no_sheet)
         
     @commands.command(brief='Adds a skill specialty')
     async def addspecialty(self, ctx, skill, specialty):
@@ -259,8 +353,12 @@ class Creation(commands.Cog, name="04. Character Creation"):
         Multi-word specialties must be enclosed in quotes.
         '''
         char = get_sheet(ctx.message.guild.id, ctx.author.id)
-        response = char.add_specialty(skill, specialty)
-        await ctx.send(response)
+        if char != None:
+            char = gen_sheet(ctx.message.guild.id, char)
+            response = char.add_specialty(skill, specialty)
+            await ctx.send(response)
+        else:
+            await ctx.send(no_sheet)
 
     @commands.command(brief='Removes a skill specialty')
     async def delspecialty(self, ctx, skill, specialty):
@@ -269,8 +367,12 @@ class Creation(commands.Cog, name="04. Character Creation"):
         Multi-word specialties must be enclosed in quotes.
         '''
         char = get_sheet(ctx.message.guild.id, ctx.author.id)
-        response = char.del_specialty(skill, specialty)
-        await ctx.send(response)
+        if char != None:
+            char = gen_sheet(ctx.message.guild.id, char)
+            response = char.del_specialty(skill, specialty)
+            await ctx.send(response)
+        else:
+            await ctx.send(no_sheet)
         
     @commands.command(brief='Sets a merit level')
     async def merit(self, ctx, selection, value):
@@ -280,21 +382,62 @@ class Creation(commands.Cog, name="04. Character Creation"):
         names should be enclosed in quotes.
         '''
         char = get_sheet(ctx.message.guild.id, ctx.author.id)
-        response = char.set_merit(selection, int(value))
-        await ctx.send(response)   
+        if char != None:
+            char = gen_sheet(ctx.message.guild.id, char)
+            response = char.set_merit(selection, int(value))
+            await ctx.send(response)   
+        else:
+            await ctx.send(no_sheet)
         
     @commands.command(brief='Sets the Integrity score for the character.')
     async def integrity(self, ctx, value):
         char = get_sheet(ctx.message.guild.id, ctx.author.id)
-        response = char.mod_integ(int(value))
-        await ctx.send(response)    
+        if char != None:
+            char = gen_sheet(ctx.message.guild.id, char)
+            response = char.mod_integ(int(value))
+            await ctx.send(response)    
+        else:
+            await ctx.send(no_sheet)
         
     @commands.command(brief='Sets the virtue and vice of the character.')
     async def virtvice(self, ctx, virtue, vice):
         char = get_sheet(ctx.message.guild.id, ctx.author.id)
-        response = char.set_virtue(virtue) + "\n"
-        response += char.set_vice(vice)
-        await ctx.send(response) 
+        if char != None:
+            char = gen_sheet(ctx.message.guild.id, char)
+            response = char.set_virtue(virtue) + "\n"
+            response += char.set_vice(vice)
+            await ctx.send(response) 
+        else:
+            await ctx.send(no_sheet)
+            
+    @commands.command(brief='Creates a character using the string provided by an online widget.')
+    async def create(self, ctx, *, createstring):
+        '''Command used to generate a mortal character quickly. Automatically
+        assembles a sheet containing a 'name', attribute scores and skill levels
+        from a predefined string.
+        
+        Significantly faster than entering every stat by hand.
+        
+        To generate your create string, please visit:
+        http://www.hecatespellworks.com/gmbotsheet/
+        '''
+        char = get_sheet(ctx.message.guild.id, ctx.author.id)
+        if char == None:
+            info = json.loads(createstring)
+            if check_sheet(info):
+                info['user id'] = ctx.author.id
+                char = gen_sheet(ctx.message.guild.id, info)
+                for attrib in info['attributes']:
+                    char.set_attrib(attrib, int(info['attributes'][attrib]))
+                for skill in info['skills']:
+                    char.set_skill(skill, int(info['skills'][skill][0]))
+                response = "{} has been created!".format(char.name)
+                char.save_sheet()
+                await ctx.send(response)
+            else:
+                await ctx.send('Invalid generator.')
+        else:
+            await ctx.send("But you already have a character!")
 
 class Other(commands.Cog, name='05. Other'):        
     @commands.command(brief='Deletes the character sheet. CANNOT BE UNDONE.')
@@ -303,9 +446,13 @@ class Other(commands.Cog, name='05. Other'):
             await ctx.send('This command will delete your character. Please be aware that this action cannot be undone.\nIf you are absolutely certain that you would like to delete your character, please input `!clear clearcharacter` in all lower case.')
         else:
             char = get_sheet(ctx.message.guild.id, ctx.author.id)
-            response = char.clear_sheet()
-            await ctx.send(response)    
-        
+            if char != None:
+                char = gen_sheet(ctx.message.guild.id, char)
+                response = char.clear_sheet()
+                await ctx.send(response)    
+            else:
+                await ctx.send("You do not have a sheet to clear.")
+
 def initialize_commands(bot):
     print('Initializing Common Actions')
     bot.add_cog(CommonActions(bot))
