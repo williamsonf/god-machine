@@ -235,7 +235,7 @@ class mortal():
                 self.save_sheet()
                 return "{}'s {} is now {}.".format(self.name, skill.title(), str(self.skills[skill][0]))
             else: #If user input is 0 or less, and no specialties, we remove the skill
-                self.skills[skill].pop()
+                del self.skills[skill]
                 self.save_sheet()
                 return "{} no longer has the skill {}.".format(self.name, skill.title())
         else: #If the skill isn't yet listed
@@ -285,7 +285,7 @@ class mortal():
                 self.save_sheet()
                 return "{} is now {}.".format(merit.title(), str(self.merits[merit]))
             else:
-                self.merits[merit].pop()
+                del self.merits[merit]
                 self.save_sheet()
                 return "{} has been removed.".format(merit.title())
         else:
