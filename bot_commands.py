@@ -380,6 +380,10 @@ class Creation(commands.Cog, name="04. Character Creation"):
         that merit will be removed. Requires two arguments. The first should be
         the merit name, the second is the value of the merit. Multi-word merit
         names should be enclosed in quotes.
+        
+        For the Defensive Combat merits to be considered when calculated defense,
+        they must be phrased as "Defensive Combat: <skill>" where <skill> is 
+        either Weaponry or Brawl.
         '''
         char = get_sheet(ctx.message.guild.id, ctx.author.id)
         if char != None:
@@ -431,6 +435,7 @@ class Creation(commands.Cog, name="04. Character Creation"):
                     char.set_attrib(attrib, int(info['attributes'][attrib]))
                 for skill in info['skills']:
                     char.set_skill(skill, int(info['skills'][skill][0]))
+                char.set_wp(char.max_wp())
                 response = "{} has been created!".format(char.name)
                 char.save_sheet()
                 await ctx.send(response)

@@ -460,8 +460,16 @@ class mortal():
     
     def get_defense(self):
         result = min([self.attributes['dexterity'], self.attributes['wits']])
+        athletics = 0
+        weaponry = 0
+        brawl = 0
+        if 'defensive combat: weaponry' in self.merits and 'weaponry' in self.skills:
+            weaponry = self.skills['weaponry'][0]
+        if 'defensive combat: brawl' in self.merits and 'brawl' in self.skills:
+            brawl = self.skills['brawl'][0]
         if 'athletics' in self.skills:
-            result += self.skills['athletics'][0]
+            athletics = self.skills['athletics'][0]
+        result += max(athletics, brawl, weaponry)
         return result
     
     def get_size(self):
@@ -478,12 +486,12 @@ class mortal():
     def set_virtue(self, value):
         self.virtue = value
         self.save_sheet()
-        return "Virtue has been set to {}".format(self.virtue)
+        return "Virtue has been set to {}".format(self.virtue.title())
     
     def set_vice(self, value):
         self.vice = value
         self.save_sheet()
-        return "Vice has been set to {}".format(self.vice)
+        return "Vice has been set to {}".format(self.vice.title())
     
     def clear_sheet(self):
         mongo_client = pymongo.MongoClient(os.environ.get('DB_HOST'), int(os.environ.get('DB_PORT')))
